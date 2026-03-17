@@ -1,5 +1,5 @@
--- SpeedyCoder1192 // TeleportBehind
--- Toggle: LeftAlt (customizable)
+-- SpeedyCoder1192 // SelfFling
+-- Toggle: RightAlt (customizable)
 
 local Players          = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -14,14 +14,17 @@ local playerGui   = localPlayer:WaitForChild("PlayerGui")
 -- =============================================
 local VALID_KEY     = "luascriptez:D"
 local MAX_ATTEMPTS  = 5
-local TOGGLE_KEY    = Enum.KeyCode.LeftAlt
-local TELEPORT_KEY  = Enum.KeyCode.Q
-local BEHIND_OFFSET = 3
+local TOGGLE_KEY    = Enum.KeyCode.RightAlt
+local FLING_KEY     = Enum.KeyCode.K
+local UNFLING_KEY   = Enum.KeyCode.L
+local VELOCITY_Y    = 180
+local VELOCITY_XZ   = 150
+local SPIN_SPEED    = 100
 -- =============================================
 
 local attempts      = 0
 local unlocked      = false
-local teleportCD    = 0
+local isFlinged     = false
 local listeningFor  = nil
 local guiVisible    = true
 local shownHideHint = false
@@ -44,7 +47,7 @@ local C = {
 
 -- ============ SCREEN GUI ============
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "SCA1192_Teleport"
+screenGui.Name = "SCA1192_Fling"
 screenGui.ResetOnSpawn = false
 screenGui.DisplayOrder = 999
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -75,7 +78,6 @@ local kpStroke = Instance.new("UIStroke", keyPanel)
 kpStroke.Color = C.border
 kpStroke.Thickness = 1
 
--- Key panel header
 local kpHeader = Instance.new("Frame")
 kpHeader.Size = UDim2.new(1, 0, 0, 44)
 kpHeader.BackgroundColor3 = C.header
@@ -123,7 +125,6 @@ kpTitle.Font = Enum.Font.Code
 kpTitle.ZIndex = 12
 kpTitle.Parent = kpHeader
 
--- Body labels
 local function kpLabel(text, y, size, color)
     local l = Instance.new("TextLabel")
     l.Size = UDim2.new(1, -24, 0, 18)
@@ -139,8 +140,8 @@ local function kpLabel(text, y, size, color)
     return l
 end
 
-kpLabel("SpeedyCoder1192  //  Teleport", 56, 14, C.textMono)
-kpLabel("-- enter your key to continue",  78, 11, C.textSec)
+kpLabel("SpeedyCoder1192  //  Fling", 56, 14, C.textMono)
+kpLabel("-- enter your key to continue", 78, 11, C.textSec)
 
 local kpDivider = Instance.new("Frame")
 kpDivider.Size = UDim2.new(1, -24, 0, 1)
@@ -152,7 +153,6 @@ kpDivider.Parent = keyPanel
 
 kpLabel("key", 112, 11, C.textSec)
 
--- Input frame
 local inputFrame = Instance.new("Frame")
 inputFrame.Size = UDim2.new(1, -24, 0, 36)
 inputFrame.Position = UDim2.new(0, 12, 0, 130)
@@ -191,7 +191,6 @@ inputBox.ClearTextOnFocus = true
 inputBox.ZIndex = 14
 inputBox.Parent = inputFrame
 
--- Status bar
 local kpStatusFrame = Instance.new("Frame")
 kpStatusFrame.Size = UDim2.new(1, -24, 0, 28)
 kpStatusFrame.Position = UDim2.new(0, 12, 0, 176)
@@ -227,7 +226,6 @@ kpStatusTxt.Parent = kpStatusFrame
 
 local attemptsLbl = kpLabel("-- attempts remaining: " .. MAX_ATTEMPTS, 214, 10, C.textSec)
 
--- Submit button
 local submitBtn = Instance.new("TextButton")
 submitBtn.Size = UDim2.new(1, -24, 0, 36)
 submitBtn.Position = UDim2.new(0, 12, 0, 232)
@@ -264,9 +262,7 @@ local function lockOut()
     attemptsLbl.TextColor3 = C.red
 end
 
-local mainPanel  -- forward declare, built after key success
-local function buildMainGui() end  -- forward declare
-
+local buildMainGui
 local function onKeySuccess()
     unlocked = true
     inputStroke.Color = C.green
@@ -290,7 +286,7 @@ local function onKeySuccess()
             keyPanel:Destroy()
             overlay:Destroy()
             screenGui.DisplayOrder = 1
-            buildMainGui()  -- now build the real GUI
+            buildMainGui()
         end)
     end)
 end
@@ -323,11 +319,7 @@ end
 
 local function trySubmit()
     if unlocked or attempts >= MAX_ATTEMPTS then return end
-    if inputBox.Text == VALID_KEY then
-        onKeySuccess()
-    else
-        onKeyFail()
-    end
+    if inputBox.Text == VALID_KEY then onKeySuccess() else onKeyFail() end
 end
 
 submitBtn.MouseButton1Click:Connect(trySubmit)
@@ -348,8 +340,8 @@ end)
 buildMainGui = function()
 
     local panel = Instance.new("Frame")
-    panel.Size = UDim2.new(0, 260, 0, 250)
-    panel.Position = UDim2.new(0, 16, 0.5, -125)
+    panel.Size = UDim2.new(0, 260, 0, 300)
+    panel.Position = UDim2.new(0, 16, 0.5, 145)
     panel.BackgroundColor3 = C.bg
     panel.BorderSizePixel = 0
     panel.ClipsDescendants = true
@@ -359,7 +351,6 @@ buildMainGui = function()
     panelStroke.Color = C.border
     panelStroke.Thickness = 1
 
-    -- Header
     local header = Instance.new("Frame")
     header.Size = UDim2.new(1, 0, 0, 44)
     header.BackgroundColor3 = C.header
@@ -396,13 +387,12 @@ buildMainGui = function()
     headerTitle.Size = UDim2.new(1, -60, 1, 0)
     headerTitle.Position = UDim2.new(0, 58, 0, 0)
     headerTitle.BackgroundTransparency = 1
-    headerTitle.Text = "SCA1192  //  teleport"
+    headerTitle.Text = "SCA1192  //  fling"
     headerTitle.TextColor3 = C.textSec
     headerTitle.TextSize = 11
     headerTitle.Font = Enum.Font.Code
     headerTitle.Parent = header
 
-    -- Helpers
     local function makeLabel(parent, text, yPos)
         local lbl = Instance.new("TextLabel")
         lbl.Size = UDim2.new(1, -24, 0, 16)
@@ -517,12 +507,14 @@ buildMainGui = function()
     end
 
     -- Build content
-    local statusTxt = makeStatusBar(panel, 52)
-    makeLabel(panel, "keybind  //  teleport", 92)
-    local tpKeyBtn  = makeKeybindBtn(panel, TELEPORT_KEY, 108)
-    local getOffset = makeNumRow(panel, "offset (studs)", BEHIND_OFFSET, 152, 1, 20, 1)
-    makeLabel(panel, "toggle  //  gui", 194)
-    local toggleKeyBtn = makeKeybindBtn(panel, TOGGLE_KEY, 210)
+    local statusTxt  = makeStatusBar(panel, 52)
+    makeLabel(panel, "keybind  //  fling",   92)
+    local flKeyBtn   = makeKeybindBtn(panel, FLING_KEY,   108)
+    makeLabel(panel, "keybind  //  unfling", 150)
+    local unflKeyBtn = makeKeybindBtn(panel, UNFLING_KEY, 166)
+    local getPower   = makeNumRow(panel, "power (Y velocity)", VELOCITY_Y, 210, 40, 500, 20)
+    makeLabel(panel, "toggle  //  gui", 248)
+    local toggleKeyBtn = makeKeybindBtn(panel, TOGGLE_KEY, 264)
 
     local footer = Instance.new("TextLabel")
     footer.Size = UDim2.new(1, -24, 0, 14)
@@ -560,7 +552,7 @@ buildMainGui = function()
             shownHideHint = true
             pcall(function()
                 StarterGui:SetCore("SendNotification", {
-                    Title    = "Teleport GUI Hidden",
+                    Title    = "Fling GUI Hidden",
                     Text     = "Press " .. TOGGLE_KEY.Name .. " to reopen.",
                     Duration = 5,
                 })
@@ -579,12 +571,9 @@ buildMainGui = function()
             if gp then return end
             if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
             local name = input.KeyCode.Name
-            if slot == "teleport" then
-                TELEPORT_KEY = input.KeyCode
-                statusTxt.Text = "tp key → " .. name
-            elseif slot == "toggle" then
-                TOGGLE_KEY = input.KeyCode
-                statusTxt.Text = "toggle → " .. name
+            if slot == "fling"   then FLING_KEY   = input.KeyCode; statusTxt.Text = "fling → "   .. name
+            elseif slot == "unfling" then UNFLING_KEY = input.KeyCode; statusTxt.Text = "unfling → " .. name
+            elseif slot == "toggle"  then TOGGLE_KEY  = input.KeyCode; statusTxt.Text = "toggle → "  .. name
             end
             btn.Text = "[ " .. name .. " ]"
             btn.TextColor3 = C.textMono
@@ -594,40 +583,44 @@ buildMainGui = function()
         end)
     end
 
-    tpKeyBtn.MouseButton1Click:Connect(function()    startRebind("teleport", tpKeyBtn)    end)
-    toggleKeyBtn.MouseButton1Click:Connect(function() startRebind("toggle",  toggleKeyBtn) end)
+    flKeyBtn.MouseButton1Click:Connect(function()     startRebind("fling",    flKeyBtn)     end)
+    unflKeyBtn.MouseButton1Click:Connect(function()   startRebind("unfling",  unflKeyBtn)   end)
+    toggleKeyBtn.MouseButton1Click:Connect(function()  startRebind("toggle",   toggleKeyBtn) end)
 
-    -- Teleport logic
-    local function getRandomOtherPlayer()
-        local others = {}
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= localPlayer then table.insert(others, p) end
-        end
-        if #others == 0 then return nil end
-        return others[math.random(1, #others)]
+    -- Fling logic
+    local function fling()
+        if isFlinged then return end
+        local char = localPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+        local power = getPower()
+        local bv = Instance.new("BodyVelocity")
+        bv.Name        = "SelfFlingForce"
+        bv.Velocity    = Vector3.new(math.random(-VELOCITY_XZ, VELOCITY_XZ), power, math.random(-VELOCITY_XZ, VELOCITY_XZ))
+        bv.MaxForce    = Vector3.new(9e9, 9e9, 9e9)
+        bv.Parent      = root
+        local bav = Instance.new("BodyAngularVelocity")
+        bav.Name            = "SelfFlingSpin"
+        bav.AngularVelocity = Vector3.new(0, SPIN_SPEED, 0)
+        bav.MaxTorque       = Vector3.new(9e9, 9e9, 9e9)
+        bav.Parent          = root
+        isFlinged = true
+        statusTxt.Text = "flinged! power=" .. power
+        statusTxt.TextColor3 = C.yellow
     end
 
-    local function teleport()
-        local now = tick()
-        if now - teleportCD < 0.5 then return end
-        teleportCD = now
-        local myChar = localPlayer.Character
-        local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-        if not myRoot then return end
-        local target = getRandomOtherPlayer()
-        if not target then
-            statusTxt.Text = "no players found"
-            statusTxt.TextColor3 = C.red
-            return
+    local function unfling()
+        if not isFlinged then return end
+        local char = localPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if root then
+            local f = root:FindFirstChild("SelfFlingForce")
+            local s = root:FindFirstChild("SelfFlingSpin")
+            if f then f:Destroy() end
+            if s then s:Destroy() end
         end
-        local tRoot = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
-        if not tRoot then
-            statusTxt.Text = "target unavailable"
-            statusTxt.TextColor3 = C.yellow
-            return
-        end
-        myRoot.CFrame = tRoot.CFrame * CFrame.new(0, 0, getOffset())
-        statusTxt.Text = "→ " .. target.Name
+        isFlinged = false
+        statusTxt.Text = "grounded"
         statusTxt.TextColor3 = C.green
     end
 
@@ -639,10 +632,11 @@ buildMainGui = function()
             return
         end
         if gameProcessed or listeningFor then return end
-        if input.KeyCode == TELEPORT_KEY then teleport() end
+        if input.KeyCode == FLING_KEY   then fling()   end
+        if input.KeyCode == UNFLING_KEY then unfling()  end
     end)
 
-    print("Teleport ready | toggle=" .. TOGGLE_KEY.Name .. " | tp=" .. TELEPORT_KEY.Name)
+    print("SCA1192 Fling ready | toggle=" .. TOGGLE_KEY.Name .. " | fling=" .. FLING_KEY.Name .. " | unfling=" .. UNFLING_KEY.Name)
 end
 
-print("Teleport loaded | awaiting key...")
+print("SCA1192 Fling loaded | awaiting key...")
